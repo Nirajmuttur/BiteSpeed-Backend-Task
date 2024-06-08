@@ -16,6 +16,7 @@ interface TransformedData {
     };
 }
 export const createIdentity = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+    console.log(req.body)
     const { email, phoneNumber } = req.body
     try {
         // Check if contact with either phoneNumber or email exists
