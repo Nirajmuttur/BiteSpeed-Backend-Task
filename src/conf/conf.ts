@@ -10,5 +10,5 @@ export const conf={
     postgresPassword: String(process.env.POSTGRES_PASSWORD),
     postgresHost: String(process.env.POSTGRES_HOST),
     postgresDatabase: String(process.env.POSTGRES_DATABASE),
-    port: String(process.env.PORT)
+    port: Number(process.env.POSTGRES_PORT)
 }

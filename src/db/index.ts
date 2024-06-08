@@ -6,7 +6,8 @@ const pool = new Pool({
     user: conf.postgresUserName,
     host: conf.postgresHost,
     password: conf.postgresPassword,
-    database: conf.postgresDatabase
+    database: conf.postgresDatabase,
+    port: conf.port
 })
 
 export async function query<T>(text: string, params?: any[]):Promise<T[]> {
