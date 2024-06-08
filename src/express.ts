@@ -1,5 +1,6 @@
 import express from 'express'
 import cors from 'cors'
+import errorHandler from './middlerware/errorHandler'
 
 const app = express()
 
@@ -9,7 +10,7 @@ app.use(cors({
     credentials: true
 }))
 app.use(express.json({ limit: "20kb" }))
-
+app.use(errorHandler)
 app.get('/', (req, res) => {
     res.send('Hello World')
 })
