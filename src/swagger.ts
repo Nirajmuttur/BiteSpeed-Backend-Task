@@ -1,5 +1,4 @@
 import swaggerJSDoc from "swagger-jsdoc";
-import path from 'path';
 const swaggerDefinition = {
     openapi: '3.0.0',
     info: {
@@ -22,7 +21,7 @@ const swaggerDefinition = {
 
 const options = {
     swaggerDefinition,
-    apis: [path.resolve(__dirname, './routes/*.ts')]
+    apis: ['swagger.yaml']
 }
 
 export const swaggerSpec = swaggerJSDoc(options)

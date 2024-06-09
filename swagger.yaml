@@ -1,0 +1,51 @@
+paths:
+  /api/identity:
+    post:
+      tags:
+        - Identity
+      summary: Add a new Identity
+      description: Add a new Identity
+      requestBody:
+        description: Create a new Identity
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                phoneNumber:
+                  type: number
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Identity'
+        '400':
+          description: Invalid input
+        '422':
+          description: Validation exception
+components:
+  schemas:
+    Identity:
+      type: object
+      properties:
+        emails:
+          type: array
+          items:
+            type: string
+        primaryContactId:
+          type: array
+          items:
+            type: string
+        phoneNumbers:
+          type: array
+          items:
+            type: string
+        secondaryContactIds:
+          type: array
+          items:
+            type: string
+      
