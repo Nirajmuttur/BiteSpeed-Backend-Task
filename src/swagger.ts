@@ -12,6 +12,10 @@ const swaggerDefinition = {
             url: 'http://localhost:3000',
             description: 'Development server',
         },
+        {
+            url: 'https://bitespeed-backend-task-n27o.onrender.com',
+            description: 'Production Server'
+        }
     ],
 }
 
