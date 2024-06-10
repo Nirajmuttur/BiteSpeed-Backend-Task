@@ -19,13 +19,18 @@ export const createIdentity = asyncHandler(async (req: Request, res: Response, n
     const { email, phoneNumber } = req.body
     try {
         // Check if contact with either phoneNumber or email exists
-        const existingContacts:Contact[] = await query(
-            'SELECT * FROM CONTACT WHERE phoneNumber = $1 OR email = $2',
+        let existingContacts: Contact[] = await query(
+            'SELECT * FROM contact WHERE phoneNumber = $1 OR email = $2 ',
             [phoneNumber, email]
-        );
-        // Map existing contacts
-        const mappedExistingContacts: Contact[] = existingContacts.map(mapDbRowToContact);
+          );
+        
+        let mappedContact: Contact[] = existingContacts.map(mapDbRowToContact);
 
+        // Map existing contacts
+        let mappedExistingContacts: Contact[] = existingContacts.map(mapDbRowToContact);
+        mappedExistingContacts = mappedExistingContacts.filter(contact => contact.linkPrecedence === 'primary');
+        //sort so that we get oldest primary identity
+        mappedExistingContacts.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
         // Prepare response structure
         const responseData: TransformedData = {
             contact: {
@@ -35,61 +40,51 @@ export const createIdentity = asyncHandler(async (req: Request, res: Response, n
                 secondaryContactIds: [],
             },
         };
-        if (mappedExistingContacts.length === 0) {
 
-            // No existing contacts, create new contact with linkPrecedence as primary
-            const newContactArray:Contact[] = await query(
+        let primaryContact = mappedExistingContacts[0]
+
+        if (!primaryContact) {
+            //insert if we dont find any primary identity
+            const newPrimaryContact = await query(
                 'INSERT INTO CONTACT (phoneNumber, email, linkPrecedence, linkedId) VALUES ($1, $2, $3, $4) RETURNING *',
                 [phoneNumber, email, 'primary', null]
             );
-
-            //map contact
-            const newContact:Contact = mapDbRowToContact(newContactArray[0])
-            //add data to response 
-            responseData.contact.emails.push(newContact.email)
-            responseData.contact.primaryContactId = newContact.id
-            responseData.contact.phoneNumbers.push(newContact.phoneNumber)
-            return res.status(201).json(new ApiResponse(200, responseData));
+            primaryContact = mapDbRowToContact(newPrimaryContact[0]);
         } else {
-            // Existing contacts found
-            let primaryContact = mappedExistingContacts.filter(contact => contact.linkPrecedence === 'primary');
-            let oldestPrimaryContact = primaryContact.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())[0];
-            // Check if incoming request has new information
-            const isNewInformation = mappedExistingContacts.every(contact => contact.phoneNumber !== phoneNumber || contact.email !== email);
-            if (isNewInformation) {
-                // check if incoming email is already present
-                const existingEmail = mappedExistingContacts.find(contact => contact.email === email);
-                //check if incoming phoneNumber is already present
-                const existingPhoneNumber = mappedExistingContacts.find(contact => contact.phoneNumber === phoneNumber);
-                if (!existingEmail && !existingPhoneNumber) {
-                    //if both are not present then insert new record into contact table
-                    await query(
-                        'INSERT INTO public.contact (phonenumber, email, linkprecedence, linkedid) VALUES ($1, $2, $3, $4)',
-                        [phoneNumber, email, 'secondary', oldestPrimaryContact.id]
+            if ((email && !mappedContact.find(contact => contact.email === email)) && (phoneNumber && !mappedContact.find(contact => contact.phoneNumber === phoneNumber))) {
+                //insert if we get new information either email or phonenumber
+                await query(
+                    'INSERT INTO contact (phonenumber, email, linkprecedence, linkedid) VALUES ($1, $2, $3, $4)',
+                    [phoneNumber, email, 'secondary', primaryContact.id]
+                );
+            }
+
+            mappedContact.forEach(async contact => {
+                if (contact.id !== primaryContact.id && contact.linkPrecedence === 'primary') {
+                    //handling condition when primary turns to secondary
+                    await query('UPDATE CONTACT SET linkPrecedence = $1, linkedId = $2 WHERE id = $3',
+                        ['secondary', primaryContact.id, contact.id]
                     );
                 }
-            }
-            // Ensure all other contacts are linked to the primary contact
-            await query('UPDATE CONTACT SET linkPrecedence = $1, linkedId = $2 WHERE id != $3 AND (phoneNumber = $4 OR email = $5)',
-                ['secondary', oldestPrimaryContact.id, oldestPrimaryContact.id, phoneNumber, email]
-            );
-            const rows:Contact[] = await query('SELECT * FROM CONTACT c WHERE c.linkPrecedence =$1 OR c.linkedId IN (SELECT id FROM contact where linkPrecedence=$2)', ['primary', 'primary'])
-            const mappedRows: Contact[] = rows.map(mapDbRowToContact);
-            mappedRows.forEach((row: Contact) => {
-                if (row.linkPrecedence === 'primary') {
-                    responseData.contact.primaryContactId = row.id;
-                } else {
-                    responseData.contact.secondaryContactIds.push(row.id);
-                }
-                if (!responseData.contact.emails.includes(row.email)) {
-                    responseData.contact.emails.push(row.email);
-                }
-                if (!responseData.contact.phoneNumbers.includes(row.phoneNumber)) {
-                    responseData.contact.phoneNumbers.push(row.phoneNumber);
-                }
-            });
-            return res.status(200).json(new ApiResponse(200, responseData));
+            })
+
         }
+        const rows: Contact[] = await query('SELECT * FROM contact WHERE (id = $1 OR linkedid = $1)', [primaryContact?.id])
+        const mappedRows: Contact[] = rows.map(mapDbRowToContact);
+        mappedRows.forEach((row: Contact) => {
+            if (row.linkPrecedence === 'primary') {
+                responseData.contact.primaryContactId = row.id;
+            } else {
+                responseData.contact.secondaryContactIds.push(row.id);
+            }
+            if (!responseData.contact.emails.includes(row.email)) {
+                responseData.contact.emails.push(row.email);
+            }
+            if (!responseData.contact.phoneNumbers.includes(row.phoneNumber)) {
+                responseData.contact.phoneNumbers.push(row.phoneNumber);
+            }
+        });
+        return res.status(200).json(new ApiResponse(200, responseData));
     } catch (error) {
         next(error);
     }
